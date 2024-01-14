@@ -1,10 +1,4 @@
 import os
-
-os.system("python -m pip install xlsxwriter")
-os.system("python -m pip install currencyconverter")
-os.system("python -m pip install currency_codes")
-os.system("python -m pip install openpyxl")
-
 import streamlit as st
 import zipfile
 from io import BytesIO
