@@ -1,4 +1,10 @@
 import os
+
+os.system("python -m pip install xlsxwriter")
+os.system("python -m pip install currencyconverter")
+os.system("python -m pip install currency_codes")
+os.system("python -m pip install openpyxl")
+
 import streamlit as st
 import zipfile
 from io import BytesIO
@@ -50,52 +56,61 @@ class NalogSummarizer:
         self.final_df['div'] = pd.concat([self.final_df['div'], summ_div], ignore_index=True)
 
         # summarize acts
-        sm = self.final_df['act']['Сумма RUB'].sum()
-        summ_act = [
-            ["Всего", '', '', '', '', '', '', '', self.final_df['act']['Сумма RUB'].sum()],
-            self.final_df['act'].columns,
-            ["Доходы", '', '', '', '', '', '', '',
-             self.final_df['act'][self.final_df['act']['Операция'] == 'Реализация']['Сумма RUB'].sum()],
-            ["Расходы", '', '', '', '', '', '', '',
-             self.final_df['act'][self.final_df['act']['Операция'] == 'Приобретение']['Сумма RUB'].sum()],
-            ["Ставка", '', '', '', '', '', '', '', "13%"],
-            ["Доплаты RUB", '', '', '', '', '', '', '', max(0, 0.13 * sm)],
-            ["Убыток", '', '', '', '', '', '', '', -min(0, sm)],
-            ["Начало истории", '', '', '', '', '', '', '', self.final_df['act']['Дата'].iloc[0]]
-        ]
-        summ_act = pd.DataFrame(summ_act, columns=self.final_df['act'].columns)
-        self.final_df['act'] = self.final_df['act'].reset_index().drop(columns=['index']).sort_values(by='Тикер')
-        self.final_df['act'] = pd.concat([self.final_df['act'], summ_act], ignore_index=True)
+        try:
+            sm = self.final_df['act']['Сумма RUB'].sum()
+            summ_act = [
+                ["Всего", '', '', '', '', '', '', '', self.final_df['act']['Сумма RUB'].sum()],
+                self.final_df['act'].columns,
+                ["Доходы", '', '', '', '', '', '', '',
+                 self.final_df['act'][self.final_df['act']['Операция'] == 'Реализация']['Сумма RUB'].sum()],
+                ["Расходы", '', '', '', '', '', '', '',
+                 self.final_df['act'][self.final_df['act']['Операция'] == 'Приобретение']['Сумма RUB'].sum()],
+                ["Ставка", '', '', '', '', '', '', '', "13%"],
+                ["Доплаты RUB", '', '', '', '', '', '', '', max(0, 0.13 * sm)],
+                ["Убыток", '', '', '', '', '', '', '', -min(0, sm)],
+                ["Начало истории", '', '', '', '', '', '', '', self.final_df['act']['Дата'].iloc[0]]
+            ]
+            summ_act = pd.DataFrame(summ_act, columns=self.final_df['act'].columns)
+            self.final_df['act'] = self.final_df['act'].reset_index().drop(columns=['index']).sort_values(by='Тикер')
+            self.final_df['act'] = pd.concat([self.final_df['act'], summ_act], ignore_index=True)
+        except:
+            pass
 
         # summarize ft_act2
-        sm = self.final_df['ft_act']['Сумма RUB'].sum()
-        summ_act = [
-            ["Всего", '', '', '', '', '', '', '', self.final_df['ft_act']['Сумма RUB'].sum()],
-            ["Доходы", '', '', '', '', '', '', '',
-             self.final_df['ft_act'][self.final_df['ft_act']['Операция'] == 'Продажа']['Сумма RUB'].sum()],
-            ["Расходы", '', '', '', '', '', '', '',
-             self.final_df['ft_act'][self.final_df['ft_act']['Операция'] == 'Покупка']['Сумма RUB'].sum()],
-            ["Убыток", '', '', '', '', '', '', '', -min(0, sm)],
-            ["Начало истории", '', '', '', '', '', '', '', self.final_df['ft_act']['Дата'].iloc[0]]
-        ]
-        summ_act = pd.DataFrame(summ_act, columns=self.final_df['ft_act'].columns)
-        self.final_df['ft_act'] = self.final_df['ft_act'].reset_index().drop(columns=['index']).sort_values(by='Тикер')
-        self.final_df['ft_act'] = pd.concat([self.final_df['ft_act'], summ_act], ignore_index=True)
+        try:
+            sm = self.final_df['ft_act']['Сумма RUB'].sum()
+            summ_act = [
+                ["Всего", '', '', '', '', '', '', '', self.final_df['ft_act']['Сумма RUB'].sum()],
+                ["Доходы", '', '', '', '', '', '', '',
+                 self.final_df['ft_act'][self.final_df['ft_act']['Операция'] == 'Продажа']['Сумма RUB'].sum()],
+                ["Расходы", '', '', '', '', '', '', '',
+                 self.final_df['ft_act'][self.final_df['ft_act']['Операция'] == 'Покупка']['Сумма RUB'].sum()],
+                ["Убыток", '', '', '', '', '', '', '', -min(0, sm)],
+                ["Начало истории", '', '', '', '', '', '', '', self.final_df['ft_act']['Дата'].iloc[0]]
+            ]
+            summ_act = pd.DataFrame(summ_act, columns=self.final_df['ft_act'].columns)
+            self.final_df['ft_act'] = self.final_df['ft_act'].reset_index().drop(columns=['index']).sort_values(by='Тикер')
+            self.final_df['ft_act'] = pd.concat([self.final_df['ft_act'], summ_act], ignore_index=True)
+        except:
+            pass
 
         # summarize ft_act3
-        sm = self.final_df['ft_non_act']['Сумма RUB'].sum()
-        summ_act = [
-            ["Всего", '', '', '', '', '', '', '', self.final_df['ft_non_act']['Сумма RUB'].sum()],
-            ["Доходы", '', '', '', '', '', '', '',
-             self.final_df['ft_non_act'][self.final_df['ft_non_act']['Операция'] == 'Продажа']['Сумма RUB'].sum()],
-            ["Расходы", '', '', '', '', '', '', '',
-             self.final_df['ft_non_act'][self.final_df['ft_non_act']['Операция'] == 'Покупка']['Сумма RUB'].sum()],
-            ["Убыток", '', '', '', '', '', '', '', -min(0, sm)],
-            ["Начало истории", '', '', '', '', '', '', '', self.final_df['ft_non_act']['Дата'].iloc[0]]
-        ]
-        summ_act = pd.DataFrame(summ_act, columns=self.final_df['ft_non_act'].columns)
-        self.final_df['ft_non_act'] = self.final_df['ft_non_act'].reset_index().drop(columns=['index']).sort_values(by='Тикер')
-        self.final_df['ft_non_act'] = pd.concat([self.final_df['ft_non_act'], summ_act], ignore_index=True)
+        try:
+            sm = self.final_df['ft_non_act']['Сумма RUB'].sum()
+            summ_act = [
+                ["Всего", '', '', '', '', '', '', '', self.final_df['ft_non_act']['Сумма RUB'].sum()],
+                ["Доходы", '', '', '', '', '', '', '',
+                 self.final_df['ft_non_act'][self.final_df['ft_non_act']['Операция'] == 'Продажа']['Сумма RUB'].sum()],
+                ["Расходы", '', '', '', '', '', '', '',
+                 self.final_df['ft_non_act'][self.final_df['ft_non_act']['Операция'] == 'Покупка']['Сумма RUB'].sum()],
+                ["Убыток", '', '', '', '', '', '', '', -min(0, sm)],
+                ["Начало истории", '', '', '', '', '', '', '', self.final_df['ft_non_act']['Дата'].iloc[0]]
+            ]
+            summ_act = pd.DataFrame(summ_act, columns=self.final_df['ft_non_act'].columns)
+            self.final_df['ft_non_act'] = self.final_df['ft_non_act'].reset_index().drop(columns=['index']).sort_values(by='Тикер')
+            self.final_df['ft_non_act'] = pd.concat([self.final_df['ft_non_act'], summ_act], ignore_index=True)
+        except:
+            pass
 
     def get_csv_moves(self, df):
         lines = [df.iloc[i][0].split(',') for i in range(len(df))]
@@ -215,12 +230,28 @@ class NalogSummarizer:
         self.final_df['act'] = pd.concat([self.final_df['act'], act_df], ignore_index=True)
 
     def parse_csv(self, df):
-        self.get_csv_act(df)
-        self.get_csv_dividend(df)
-        self.get_csv_moves(df)
+        try:
+            self.get_csv_act(df)
+        except Exception as e:
+            print(e)
+        try:
+            self.get_csv_dividend(df)
+        except Exception as e:
+            print(e)
+        try:
+            self.get_csv_moves(df)
+        except Exception as e:
+            print(e)
 
     def parse_xlsx(self, df):
-        self.get_xlsx_f(df)
+        try:
+            self.get_xlsx_f(df)
+        except Exception as e:
+            print(e)
+        try:
+            self.get_xlsx_act(df)
+        except Exception as e:
+            print(e)
 
     def get_xlsx_f(self, df):
         c = CurrencyConverter(fallback_on_wrong_date=True)
@@ -259,6 +290,31 @@ class NalogSummarizer:
         self.final_df['ft_act'] = pd.concat([self.final_df['ft_act'], res_df.iloc[act_ind]], ignore_index=True)
         self.final_df['ft_non_act'] = pd.concat([self.final_df['ft_non_act'], res_df.iloc[non_act_ind]],
                                                 ignore_index=True)
+
+    def get_xlsx_act(self, df):
+        dff = df.copy()
+        dff = dff[abs(dff[' Прибыль в RUR ']) > 0]
+        dff2 = dff.copy()
+        dff[' Операция '] = 'Реализация'
+        dff2[' Операция '] = 'Приобретение'
+        dff2[' Сумма '] = dff2[' Сумма '] - dff2[' Прибыль ']
+        dff2[' Количество '] = -dff2[' Количество ']
+        dff2[' Цена '] = dff2[' Сумма '] / dff2[' Количество ']
+        dff2[' Дата расчетов '] = dff[' Дата расчетов '].iloc[0]
+        dff = pd.concat((dff, dff2), axis=0)
+        res = pd.DataFrame()
+        res['Дата'] = dff[' Дата расчетов ']
+        res['Переоценка'] = res['Дата']
+        res['Валюта'] = dff[' Валюта ']
+        res['Валюта/RUB'] = dff[' Курс валюты ']
+        res['Тикер'] = dff[' Тикер ']
+        res['Операция'] = dff[' Операция ']
+        res['Кол-во'] = dff[' Количество ']
+        res['Сумма'] = dff[' Сумма ']
+        res['Сумма RUB'] = res['Сумма'] * res['Валюта/RUB']
+        res['Кол-во'] = -res['Кол-во']
+        res = res.sort_values(by=['Дата', 'Операция'])
+        self.final_df['act'] = pd.concat([self.final_df['act'], res], ignore_index=True)
 
     def get_main_df(self):
         df = pd.DataFrame()
