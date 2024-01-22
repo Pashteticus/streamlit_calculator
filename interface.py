@@ -5,6 +5,7 @@ os.system("python -m pip install currencyconverter")
 os.system("python -m pip install currency_codes")
 os.system("python -m pip install openpyxl")
 
+import re
 import streamlit as st
 import zipfile
 from io import BytesIO
@@ -156,7 +157,7 @@ class NalogSummarizer:
         self.final_df['moves'] = pd.concat([self.final_df['moves'], act_df], ignore_index=True)
 
     def get_csv_dividend(self, df):
-        c = CurrencyConverter(fallback_on_missing_rate=True)
+        c = CurrencyConverter(fallback_on_missing_rate=True, fallback_on_wrong_date=True)
         lines = [df.iloc[i][0].split(',') for i in range(len(df))]
         cur_header = []
         useful_lines = []
@@ -194,7 +195,7 @@ class NalogSummarizer:
 
     def get_csv_act(self, df):
         lines = [df.iloc[i][0].split(',') for i in range(len(df))]
-        c = CurrencyConverter(fallback_on_missing_rate=True)
+        c = CurrencyConverter(fallback_on_missing_rate=True, fallback_on_wrong_date=True)
         cur_header = []
         useful_lines = []
         useful_header = []
@@ -210,7 +211,7 @@ class NalogSummarizer:
         act_df = pd.DataFrame()
         useful_lines = useful_lines[:-1]
         res = pd.DataFrame(useful_lines, columns=useful_header)
-        act_df['Дата'] = [x[2:] for x in res['Символ']]
+        act_df['Дата'] = ['-'.join(re.findall("\d+", x)) for x in res['Символ']]
         act_df['Переоценка'] = [x[2:] for x in res['Символ']]
         act_df['Валюта'] = [x.upper() for x in res['Класс актива']]
         act_df['Валюта/RUB'] = [
@@ -252,9 +253,48 @@ class NalogSummarizer:
             self.get_xlsx_act(df)
         except Exception as e:
             print(e)
+        try:
+            self.get_xlsx_ff(df)
+        except Exception as e:
+            print(e)
 
+    def get_xlsx_ff(self, df):
+        dff = df.copy()
+        c = CurrencyConverter(fallback_on_missing_rate=True, fallback_on_wrong_date=True)
+        for i in range(1, len(dff)):
+            if 'Валюта' in ''.join([str(x) for x in dff.iloc[i].values]):
+                val = dff.iloc[i].values[2]
+            if 'Тикер' in dff.iloc[i].values and 'сделк' in ''.join([str(x) for x in dff.iloc[i - 1].values]):
+                dff.columns = dff.iloc[i]
+                dff = dff.iloc[i + 1:]
+                break
+        dff = dff[(dff['Вид'] == 'Купля') + (dff['Вид'] == 'Продажа')]
+        dff = dff.reset_index()
+        res_df = pd.DataFrame()
+        res_df['Дата'] = ['-'.join(re.findall('\d+', x)[:3][::-1]) for x in dff['Время']]
+        res_df['Переоценка'] = res_df['Дата']
+        res_df['Валюта'] = val
+        res_df['Валюта/RUB'] = [
+            c.convert(1, val, 'RUB', date=date(int(x[:4]), int(x[5:7]), int(x[8:10]))) if len(x) > 0 else -1 for x in
+            res_df['Дата']]
+        res_df['Тикер'] = dff['Тикер']
+        res_df['Операция'] = dff['Вид'].str.replace('Купля', 'Приобретение')
+        res_df['Кол-во'] = abs(dff['Кол-во'])
+        res_df['Сумма'] = [-dff['Сумма'].iloc[i] if res_df['Операция'].iloc[i] == 'Покупка' else dff['Сумма'].iloc[i]
+                           for i in
+                           range(len(dff))]
+        res_df['Сумма RUB'] = res_df['Сумма'] * res_df['Валюта/RUB']
+        act_ind, non_act_ind = [], []
+        for i in range(len(res_df)):
+            if res_df['Тикер'].iloc[i] in self.non_act_tick:
+                non_act_ind.append(i)
+            else:
+                act_ind.append(i)
+        self.final_df['ft_act'] = pd.concat([self.final_df['ft_act'], res_df.iloc[act_ind]], ignore_index=True)
+        self.final_df['ft_non_act'] = pd.concat([self.final_df['ft_non_act'], res_df.iloc[non_act_ind]],
+                                                ignore_index=True)
     def get_xlsx_f(self, df):
-        c = CurrencyConverter(fallback_on_wrong_date=True)
+        c = CurrencyConverter(fallback_on_missing_rate=True, fallback_on_wrong_date=True)
         dct = {'Рубль': 'RUB', 'Доллар': "USD", "Dollar": "USD", "RUB": "RUB", "USD": "USD"}
         full_df = df.copy()
         df = df[df.columns[:7]]
