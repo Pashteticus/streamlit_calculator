@@ -321,6 +321,7 @@ class NalogSummarizer:
         res_df['Дата'] = ['-'.join([str(res_df['Дата'].iloc[i].year),
                                     str(res_df['Дата'].iloc[i].month),
                                     str(res_df['Дата'].iloc[i].day)]) for i in range(len(res_df['Дата']))]
+        res_df['Переоценка'] = res_df['Дата']
         res_df['Тикер'] = [x.split('-')[0] for x in df['Тикер']]
         res_df['Операция'] = df['Операция']
         res_df['Кол-во'] = df['Кол-во']
