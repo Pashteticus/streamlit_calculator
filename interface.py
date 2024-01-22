@@ -90,7 +90,8 @@ class NalogSummarizer:
                 ["Начало истории", '', '', '', '', '', '', '', self.final_df['ft_act']['Дата'].iloc[0]]
             ]
             summ_act = pd.DataFrame(summ_act, columns=self.final_df['ft_act'].columns)
-            self.final_df['ft_act'] = self.final_df['ft_act'].reset_index().drop(columns=['index']).sort_values(by='Тикер')
+            self.final_df['ft_act'] = self.final_df['ft_act'].reset_index().drop(columns=['index']).sort_values(
+                by='Тикер')
             self.final_df['ft_act'] = pd.concat([self.final_df['ft_act'], summ_act], ignore_index=True)
         except:
             pass
@@ -108,7 +109,8 @@ class NalogSummarizer:
                 ["Начало истории", '', '', '', '', '', '', '', self.final_df['ft_non_act']['Дата'].iloc[0]]
             ]
             summ_act = pd.DataFrame(summ_act, columns=self.final_df['ft_non_act'].columns)
-            self.final_df['ft_non_act'] = self.final_df['ft_non_act'].reset_index().drop(columns=['index']).sort_values(by='Тикер')
+            self.final_df['ft_non_act'] = self.final_df['ft_non_act'].reset_index().drop(columns=['index']).sort_values(
+                by='Тикер')
             self.final_df['ft_non_act'] = pd.concat([self.final_df['ft_non_act'], summ_act], ignore_index=True)
         except:
             pass
@@ -293,6 +295,7 @@ class NalogSummarizer:
         self.final_df['ft_act'] = pd.concat([self.final_df['ft_act'], res_df.iloc[act_ind]], ignore_index=True)
         self.final_df['ft_non_act'] = pd.concat([self.final_df['ft_non_act'], res_df.iloc[non_act_ind]],
                                                 ignore_index=True)
+
     def get_xlsx_f(self, df):
         c = CurrencyConverter(fallback_on_missing_rate=True, fallback_on_wrong_date=True)
         dct = {'Рубль': 'RUB', 'Доллар': "USD", "Dollar": "USD", "RUB": "RUB", "USD": "USD"}
@@ -315,6 +318,7 @@ class NalogSummarizer:
                                                                     int(res_df['Дата'].iloc[i].day))) if len(
                 str(res_df['Дата'].iloc[i])) > 0 else -1
             for i in range(len(res_df))]
+        res_df['Дата'] = ['-'.join(re.findall(str(x))[::-1]) for x in res_df['Дата']]
         res_df['Тикер'] = [x.split('-')[0] for x in df['Тикер']]
         res_df['Операция'] = df['Операция']
         res_df['Кол-во'] = df['Кол-во']
