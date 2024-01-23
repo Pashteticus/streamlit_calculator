@@ -156,6 +156,8 @@ class NalogSummarizer:
         act_df = pd.DataFrame(fact_lines,
                               columns=["Год", "Актив", "Валюта", "Код валюты", "Начало", "Зачислено", "Списано",
                                        "Конец"])
+        act_df['Больше 600к'] = ["Да" if act_df['Зачислено'].iloc[i] + act_df['Списано'].iloc[i] >= 600000 else "Нет"
+                                 for i in range(len(act_df))]
         self.final_df['moves'] = pd.concat([self.final_df['moves'], act_df], ignore_index=True)
 
     def get_csv_dividend(self, df):
