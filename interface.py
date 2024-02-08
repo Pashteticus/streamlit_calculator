@@ -1,8 +1,6 @@
 import os
 
 os.system("python -m pip install xlsxwriter")
-os.system("python -m pip install currencyconverter")
-os.system("python -m pip install currency_codes")
 os.system("python -m pip install openpyxl")
 
 import re
@@ -10,9 +8,47 @@ import streamlit as st
 import zipfile
 from io import BytesIO
 import pandas as pd
-from currency_converter import CurrencyConverter
 from datetime import date
 from currency_codes import get_currency_by_code, CurrencyNotFoundError
+import requests
+from xml.etree import ElementTree
+
+import requests
+import xml.etree.ElementTree as ET
+from functools import lru_cache
+
+@lru_cache(maxsize=100000)
+def get_currency_rate(from_to_currency=None, date=None):
+    try:
+        list_foreign_currency = [currency for currency in from_to_currency if currency != 'RUB']
+        list_ration_currency = []
+        current_currency_rate = requests.get(f'https://www.cbr.ru/scripts/XML_daily.asp?date_req={date}')
+
+        def get_parameter_currency_from_response(searching_value, char_code_currency):
+            paramentr = ET.fromstring(current_currency_rate.text). \
+                find(f'./Valute[CharCode="{char_code_currency}"]/{searching_value}').text
+            if searching_value == 'Nominal':
+                return int(paramentr)
+            else:
+                return float(paramentr.replace(',', '.'))
+
+        def get_currency_ratio_with_rub(foreign_currency):
+            nominal = get_parameter_currency_from_response("Nominal", foreign_currency)
+            rub_for_nominal_currency = get_parameter_currency_from_response("Value", foreign_currency)
+            count_currency_for_one_rub = nominal / rub_for_nominal_currency
+            return count_currency_for_one_rub
+
+        for currency in list_foreign_currency:
+            list_ration_currency.append(get_currency_ratio_with_rub(currency))
+
+        if from_to_currency[0] == 'RUB':
+            return list_ration_currency[0]
+        elif from_to_currency[1] == 'RUB':
+            return 1 / list_ration_currency[0]
+        else:
+            return list_ration_currency[1] / list_ration_currency[0]
+    except:
+        return 0
 
 
 class NalogSummarizer:
@@ -161,7 +197,6 @@ class NalogSummarizer:
         self.final_df['moves'] = pd.concat([self.final_df['moves'], act_df], ignore_index=True)
 
     def get_csv_dividend(self, df):
-        c = CurrencyConverter(fallback_on_missing_rate=True, fallback_on_wrong_date=True)
         lines = [df.iloc[i][0].split(',') for i in range(len(df))]
         cur_header = []
         useful_lines = []
@@ -181,10 +216,10 @@ class NalogSummarizer:
         act_df['Дата'] = [x for x in res['Дата']]
         act_df['Валюта'] = [x.upper() for x in res['Валюта']]
         act_df['Валюта/RUB'] = [
-            c.convert(1, act_df['Валюта'].iloc[i].upper(), 'RUB', date=date(int(act_df['Дата'].iloc[i][:4]),
-                                                                            int(act_df['Дата'].iloc[i][5:7]),
-                                                                            int(act_df['Дата'].iloc[i][8:10]))) if len(
-                act_df['Дата'].iloc[i]) > 0 else -1 for i in range(len(act_df))]
+            get_currency_rate([act_df['Валюта'].iloc[i].upper(), "RUB"],
+                              date=f"{act_df['Дата'].iloc[i][8:10]}/{act_df['Дата'].iloc[i][5:7]}/{act_df['Дата'].iloc[i][:4]}")
+          if len(
+                act_df['Дата'].iloc[i]) > 0 else 0 for i in range(len(act_df))]
         act_df["Источник"] = [x.split()[0].upper()[:x.index('(')] for x in res['Описание']]
         act_df["Доход"] = [float(''.join([w for w in x if w.isdigit() or w == '.'])) for x in res['Сумма']]
         act_df["Удержано"] = act_df['Доход'] * 0.1
@@ -199,7 +234,6 @@ class NalogSummarizer:
 
     def get_csv_act(self, df):
         lines = [df.iloc[i][0].split(',') for i in range(len(df))]
-        c = CurrencyConverter(fallback_on_missing_rate=True, fallback_on_wrong_date=True)
         cur_header = []
         useful_lines = []
         useful_header = []
@@ -219,8 +253,10 @@ class NalogSummarizer:
         act_df['Переоценка'] = [x[2:] for x in res['Символ']]
         act_df['Валюта'] = [x.upper() for x in res['Класс актива']]
         act_df['Валюта/RUB'] = [
-            c.convert(1, 'USD', 'RUB', date=date(int(x[:4]), int(x[5:7]), int(x[8:10]))) if len(x) > 0 else -1 for x in
-            act_df['Дата']]
+            get_currency_rate([act_df['Валюта'].iloc[i].upper(), "RUB"],
+                              date=f"{act_df['Дата'].iloc[i][8:10]}/{act_df['Дата'].iloc[i][5:7]}/{act_df['Дата'].iloc[i][:4]}")
+            if len(
+                act_df['Дата'].iloc[i]) > 0 else 0 for i in range(len(act_df))]
         act_df["Тикер"] = [x.upper() for x in res['Валюта']]
         act_df["Операция"] = "Приобретение"
         act_df["Кол-во"] = [float(x) if len(x) > 0 else 0 for x in res['Количество']]
@@ -264,7 +300,6 @@ class NalogSummarizer:
 
     def get_xlsx_ff(self, df):
         dff = df.copy()
-        c = CurrencyConverter(fallback_on_missing_rate=True, fallback_on_wrong_date=True)
         for i in range(1, len(dff)):
             if 'Валюта' in ''.join([str(x) for x in dff.iloc[i].values]):
                 val = dff.iloc[i].values[2]
@@ -279,8 +314,10 @@ class NalogSummarizer:
         res_df['Переоценка'] = res_df['Дата']
         res_df['Валюта'] = val
         res_df['Валюта/RUB'] = [
-            c.convert(1, val, 'RUB', date=date(int(x[:4]), int(x[5:7]), int(x[8:10]))) if len(x) > 0 else -1 for x in
-            res_df['Дата']]
+            get_currency_rate([res_df['Валюта'].iloc[i].upper(), "RUB"],
+                              date=f"{res_df['Дата'].iloc[i][8:10]}/{res_df['Дата'].iloc[i][5:7]}/{res_df['Дата'].iloc[i][:4]}")
+            if len(
+                res_df['Дата'].iloc[i]) > 0 else 0 for i in range(len(res_df))]
         res_df['Тикер'] = dff['Тикер']
         res_df['Операция'] = dff['Вид'].str.replace('Купля', 'Приобретение')
         res_df['Кол-во'] = abs(dff['Кол-во'])
@@ -299,7 +336,6 @@ class NalogSummarizer:
                                                 ignore_index=True)
 
     def get_xlsx_f(self, df):
-        c = CurrencyConverter(fallback_on_missing_rate=True, fallback_on_wrong_date=True)
         dct = {'Рубль': 'RUB', 'Доллар': "USD", "Dollar": "USD", "RUB": "RUB", "USD": "USD"}
         full_df = df.copy()
         df = df[df.columns[:7]]
@@ -314,12 +350,13 @@ class NalogSummarizer:
         res_df['Дата'] = [x.date() for x in df['Дата']]
         res_df['Переоценка'] = res_df['Дата']
         res_df['Валюта'] = [dct[x] for x in df['Валюта']]
+
         res_df['Валюта/RUB'] = [
-            c.convert(1, res_df['Валюта'].iloc[i], 'RUB', date=date(int(res_df['Дата'].iloc[i].year),
-                                                                    int(res_df['Дата'].iloc[i].month),
-                                                                    int(res_df['Дата'].iloc[i].day))) if len(
-                str(res_df['Дата'].iloc[i])) > 0 else -1
-            for i in range(len(res_df))]
+            get_currency_rate([res_df['Валюта'].iloc[i].upper(), "RUB"],
+                              date=f"{res_df['Дата'].iloc[i].day}/{res_df['Дата'].iloc[i].month}/{res_df['Дата'].iloc[i].year}")
+            if len(
+                res_df['Дата'].iloc[i]) > 0 else 0 for i in range(len(res_df))]
+
         res_df['Дата'] = ['-'.join([str(res_df['Дата'].iloc[i].year),
                                     str(res_df['Дата'].iloc[i].month),
                                     str(res_df['Дата'].iloc[i].day)]) for i in range(len(res_df['Дата']))]
