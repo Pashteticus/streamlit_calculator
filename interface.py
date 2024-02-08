@@ -216,10 +216,10 @@ class NalogSummarizer:
         act_df['Дата'] = [x for x in res['Дата']]
         act_df['Валюта'] = [x.upper() for x in res['Валюта']]
         act_df['Валюта/RUB'] = [
-            get_currency_rate([act_df['Валюта'].iloc[i].upper(), "RUB"],
-                              date=f"{act_df['Дата'].iloc[i][8:10]}/{act_df['Дата'].iloc[i][5:7]}/{act_df['Дата'].iloc[i][:4]}")
+            get_currency_rate(tuple([act_df['Валюта'].iloc[i].upper(), "RUB"]),
+                              date=f"{str(act_df['Дата'].iloc[i])[8:10]}/{str(act_df['Дата'].iloc[i])[5:7]}/{str(act_df['Дата'].iloc[i])[:4]}")
           if len(
-                act_df['Дата'].iloc[i]) > 0 else 0 for i in range(len(act_df))]
+                str(act_df['Дата'].iloc[i])) > 0 else 0 for i in range(len(act_df))]
         act_df["Источник"] = [x.split()[0].upper()[:x.index('(')] for x in res['Описание']]
         act_df["Доход"] = [float(''.join([w for w in x if w.isdigit() or w == '.'])) for x in res['Сумма']]
         act_df["Удержано"] = act_df['Доход'] * 0.1
@@ -250,13 +250,13 @@ class NalogSummarizer:
         useful_lines = useful_lines[:-1]
         res = pd.DataFrame(useful_lines, columns=useful_header)
         act_df['Дата'] = ['-'.join(re.findall("\d+", x)) for x in res['Символ']]
-        act_df['Переоценка'] = [x[2:] for x in res['Символ']]
+        act_df['Переоценка'] = act_df['Дата']
         act_df['Валюта'] = [x.upper() for x in res['Класс актива']]
         act_df['Валюта/RUB'] = [
-            get_currency_rate([act_df['Валюта'].iloc[i].upper(), "RUB"],
-                              date=f"{act_df['Дата'].iloc[i][8:10]}/{act_df['Дата'].iloc[i][5:7]}/{act_df['Дата'].iloc[i][:4]}")
+            get_currency_rate(tuple([act_df['Валюта'].iloc[i].upper(), "RUB"]),
+                              date=f"{str(act_df['Дата'].iloc[i][8:10])}/{str(act_df['Дата'].iloc[i][5:7])}/{str(act_df['Дата'].iloc[i][:4])}")
             if len(
-                act_df['Дата'].iloc[i]) > 0 else 0 for i in range(len(act_df))]
+                str(act_df['Дата'].iloc[i])) > 0 else 0 for i in range(len(act_df))]
         act_df["Тикер"] = [x.upper() for x in res['Валюта']]
         act_df["Операция"] = "Приобретение"
         act_df["Кол-во"] = [float(x) if len(x) > 0 else 0 for x in res['Количество']]
@@ -274,29 +274,29 @@ class NalogSummarizer:
         try:
             self.get_csv_act(df)
         except Exception as e:
-            print(e)
+            print("ERROR CSV ACT", e)
         try:
             self.get_csv_dividend(df)
         except Exception as e:
-            print(e)
+            print("ERROR CSV DIV", e)
         try:
             self.get_csv_moves(df)
         except Exception as e:
-            print(e)
+            print("ERROR CSV MOVES", e)
 
     def parse_xlsx(self, df):
         try:
             self.get_xlsx_f(df)
         except Exception as e:
-            print(e)
+            print("ERROR XLSX F", e)
         try:
             self.get_xlsx_act(df)
         except Exception as e:
-            print(e)
+            print("ERROR XLSX ACT", e)
         try:
             self.get_xlsx_ff(df)
         except Exception as e:
-            print(e)
+            print("ERROR XLSX FF", e)
 
     def get_xlsx_ff(self, df):
         dff = df.copy()
@@ -314,7 +314,7 @@ class NalogSummarizer:
         res_df['Переоценка'] = res_df['Дата']
         res_df['Валюта'] = val
         res_df['Валюта/RUB'] = [
-            get_currency_rate([res_df['Валюта'].iloc[i].upper(), "RUB"],
+            get_currency_rate(tuple([res_df['Валюта'].iloc[i].upper(), "RUB"]),
                               date=f"{res_df['Дата'].iloc[i][8:10]}/{res_df['Дата'].iloc[i][5:7]}/{res_df['Дата'].iloc[i][:4]}")
             if len(
                 res_df['Дата'].iloc[i]) > 0 else 0 for i in range(len(res_df))]
@@ -352,7 +352,7 @@ class NalogSummarizer:
         res_df['Валюта'] = [dct[x] for x in df['Валюта']]
 
         res_df['Валюта/RUB'] = [
-            get_currency_rate([res_df['Валюта'].iloc[i].upper(), "RUB"],
+            get_currency_rate(tuple([res_df['Валюта'].iloc[i].upper(), "RUB"]),
                               date=f"{res_df['Дата'].iloc[i].day}/{res_df['Дата'].iloc[i].month}/{res_df['Дата'].iloc[i].year}")
             if len(
                 res_df['Дата'].iloc[i]) > 0 else 0 for i in range(len(res_df))]
