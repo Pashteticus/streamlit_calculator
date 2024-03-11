@@ -344,6 +344,7 @@ class NalogSummarizer:
         act_df["Кол-во"] = res['Количество']
         act_df["Сумма"] = np.round([float(x) if len(x) > 0 else 0 for x in res['Выручка']], 2)
         act_df['Сумма RUB'] = np.round(act_df['Валюта/RUB'] * act_df['Сумма'], 2)
+
         if 'Комиссия/плата' in res:
             act_df2 = act_df.copy()
             act_df2['Операция'] = 'Торговая комиссия'
@@ -351,6 +352,23 @@ class NalogSummarizer:
             act_df2['Сумма'] = np.round([float(x) for x in res['Комиссия/плата']], 2)
             act_df2['Сумма RUB'] = act_df2['Сумма'] * act_df2['Валюта/RUB']
             act_df = pd.concat((act_df, act_df2), axis=0)
+
+        tickers = dict()
+        for i in range(len(act_df)):
+            tick = act_df['Тикер'].iloc[i]
+            if tick not in tickers:
+                tickers[tick] = abs(act_df['Кол-во'].iloc[i]) if act_df['Операция'].iloc[i] == 'Приобретение' else -abs(
+                    act_df['Кол-во'].iloc[i])
+            else:
+                tickers[tick] += abs(act_df['Кол-во'].iloc[i]) if act_df['Операция'].iloc[
+                                                                      i] == 'Приобретение' else -abs(
+                    act_df['Кол-во'].iloc[i])
+        good_ids = []
+        for i in range(len(act_df)):
+            tick = act_df['Тикер'].iloc[i]
+            if abs(tickers[tick] - 0) < 1e-8:
+                good_ids.append(i)
+        act_df = act_df.iloc[good_ids].reset_index().drop(columns=['index'])
         act_df = act_df.sort_values(by=['Дата', 'Операция'])
         self.final_df['act'] = pd.concat([self.final_df['act'], act_df], ignore_index=True)
 
@@ -394,6 +412,23 @@ class NalogSummarizer:
             act_df2['Сумма'] = np.round([float(x) for x in dff['Комиссия']], 2)
             act_df2['Сумма RUB'] = -act_df2['Сумма'] * act_df2['Валюта/RUB']
             res = pd.concat((res, act_df2), axis=0)
+
+        tickers = dict()
+        for i in range(len(res)):
+            tick = res['Тикер'].iloc[i]
+            if tick not in tickers:
+                tickers[tick] = abs(res['Кол-во'].iloc[i]) if res['Операция'].iloc[i] == 'Приобретение' else -abs(
+                    res['Кол-во'].iloc[i])
+            else:
+                tickers[tick] += abs(res['Кол-во'].iloc[i]) if res['Операция'].iloc[i] == 'Приобретение' else -abs(
+                    res['Кол-во'].iloc[i])
+        good_ids = []
+        for i in range(len(res)):
+            tick = res['Тикер'].iloc[i]
+            if abs(tickers[tick] - 0) < 1e-8:
+                good_ids.append(i)
+        res = res.iloc[good_ids].reset_index().drop(columns=['index'])
+        
         res = res.sort_values(by=['Дата', 'Операция'])
         self.final_df['act'] = pd.concat([self.final_df['act'], res], ignore_index=True)
 
@@ -555,6 +590,23 @@ class NalogSummarizer:
         res['Сумма'] = dff[' Сумма ']
         res['Сумма RUB'] = res['Сумма'] * res['Валюта/RUB']
         res['Кол-во'] = -res['Кол-во']
+
+        tickers = dict()
+        for i in range(len(res)):
+            tick = res['Тикер'].iloc[i]
+            if tick not in tickers:
+                tickers[tick] = abs(res['Кол-во'].iloc[i]) if res['Операция'].iloc[i] == 'Приобретение' else -abs(
+                    res['Кол-во'].iloc[i])
+            else:
+                tickers[tick] += abs(res['Кол-во'].iloc[i]) if res['Операция'].iloc[i] == 'Приобретение' else -abs(
+                    res['Кол-во'].iloc[i])
+        good_ids = []
+        for i in range(len(res)):
+            tick = res['Тикер'].iloc[i]
+            if abs(tickers[tick] - 0) < 1e-8:
+                good_ids.append(i)
+        res = res.iloc[good_ids].reset_index().drop(columns=['index'])
+
         res = res.sort_values(by=['Дата', 'Операция'])
         self.final_df['act'] = pd.concat([self.final_df['act'], res], ignore_index=True)
 
