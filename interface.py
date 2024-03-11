@@ -1,3 +1,8 @@
+'''
+для добавления тикеров смотирм строчку 85
+'''
+
+
 import os
 
 os.system("python -m pip install xlsxwriter")
@@ -8,6 +13,7 @@ import streamlit as st
 import numpy as np
 import zipfile
 from io import BytesIO
+import shutil
 import pandas as pd
 from datetime import date
 from currency_codes import get_currency_by_code, CurrencyNotFoundError
@@ -18,6 +24,7 @@ import requests
 import xml.etree.ElementTree as ET
 from functools import lru_cache
 
+# код для получения валют
 @lru_cache(maxsize=100000)
 def get_currency_rate(from_to_currency=None, date=None):
     try:
@@ -54,6 +61,7 @@ def get_currency_rate(from_to_currency=None, date=None):
 
 class NalogSummarizer:
     def __init__(self):
+        # это переменная со всеми суммаризованными данными
         self.final_df = {
             "main_df": pd.DataFrame(),
             "act": pd.DataFrame(
@@ -75,6 +83,7 @@ class NalogSummarizer:
             "moves": pd.DataFrame(
                 columns=["Год", "Актив", "Валюта", "Код валюты", "Начало", "Зачислено", "Списано", "Конец"])
         }
+        # вот сюда добавляем тикеры для таблицы 3, все остальные автоматически будут отнесены к таблице 2
         self.non_act_tick = {"PR", "MF", "RUON", "1MFR", "CR", "CNY",
                              "Eu", "Si", "USDRUBF", "EURRUBF", "CNYRUBF",
                              "TY", "TRY", "HK", "HKD", "AE", "AED", "I2", "INR",
@@ -85,16 +94,56 @@ class NalogSummarizer:
                              "SV", "SILV", "SA", "SUGR", "SL", "SLV", "AM", "ALMIN",
                              "CL", "Co", "GO", "GLD", "Nl", "Zn", "NG", "WH", "W4",
                              "WHEAT", "Su", "SUGAR", "Si", "CR", "CNY"}
+    def get_min_data(self):
+        mn = []
+        for nm in self.final_df:
+            if len(self.final_df) == 0:
+                continue
+            for ct in self.final_df[nm]:
+                if 'дата' in ct.lower():
+                    if 'Ставка' in self.final_df[nm][ct].values:
+                        mn.append(str(self.final_df[nm][ct].iloc[:-7].min()))
+                    else:
+                        mn.append(str(self.final_df[nm][ct].iloc[:-6].min()))
+        if len(mn) == 0:
+            return "Нет данных"
+        return min(mn)
+
+    def get_max_data(self):
+        mn = []
+        for nm in self.final_df:
+            if len(self.final_df) == 0:
+                continue
+            for ct in self.final_df[nm]:
+                if 'дата' in ct.lower():
+                    if 'Ставка' in self.final_df[nm][ct].values:
+                        mn.append(str(self.final_df[nm][ct].iloc[:-7].max()))
+                    else:
+                        mn.append(str(self.final_df[nm][ct].iloc[:-6].max()))
+        while 'Всего' in mn:
+            mn = [x for x in mn if x != 'Всего']
+        if len(mn) == 0:
+            return "Нет данных"
+        return max(mn)
 
     def summarize_final_df(self):
         # summarize dividends
         main_sum = 0
-        summ_div = [["Всего", '', '', '', '', '', self.final_df['div']['Доход RUB'].sum(),
-                     self.final_df['div']['Удержано RUB'].sum(), "10%", "13%",
-                     self.final_df['div']['Зачтено RUB'].sum(), self.final_df['div']['Доплата RUB'].sum(), '']]
-        summ_div = pd.DataFrame(summ_div, columns=self.final_df['div'].columns)
-        self.final_df['div'] = pd.concat([self.final_df['div'], summ_div], ignore_index=True)
-        main_sum += max(self.final_df['div']['Доплата RUB'].sum(), 0)
+        main_df_div = [self.final_df['div']['Доход RUB'].sum(), self.final_df['div']['Удержано RUB'].sum(), self.final_df['div']['Доплата RUB'].sum()]
+        try:
+            act_sm = self.final_df['act']['Сумма RUB'].sum()
+        except:
+            act_sm = 0
+        if len(self.final_df['div']) > 0:
+            try:
+                summ_div = [["Всего", '', '', '', '', '', self.final_df['div']['Доход RUB'].sum(),
+                             self.final_df['div']['Удержано RUB'].sum(), "10%", "13%",
+                             self.final_df['div']['Зачтено RUB'].sum(), self.final_df['div']['Доплата RUB'].sum(), '']]
+                summ_div = pd.DataFrame(summ_div, columns=self.final_df['div'].columns)
+                self.final_df['div'] = pd.concat([self.final_df['div'], summ_div], ignore_index=True)
+                main_sum += max(self.final_df['div']['Доплата RUB'].sum(), 0)
+            except Exception as e:
+                print("ERROR SUM DIV", e)
         # summarize acts
         try:
             sm = self.final_df['act']['Сумма RUB'].sum()
@@ -112,7 +161,8 @@ class NalogSummarizer:
             ]
             main_sum += max(0, 0.13 * sm)
             summ_act = pd.DataFrame(summ_act, columns=self.final_df['act'].columns)
-            self.final_df['act'] = self.final_df['act'].reset_index().drop(columns=['index']).sort_values(by='Тикер')
+            self.final_df['act']['Сумма RUB'] = np.round(self.final_df['act']['Сумма RUB'], 2)
+            self.final_df['act'] = self.final_df['act'].reset_index().drop(columns=['index'])
             self.final_df['act'] = pd.concat([self.final_df['act'], summ_act], ignore_index=True)
         except Exception as e:
             print(f"SUM ACT ERROR: {e}")
@@ -157,12 +207,30 @@ class NalogSummarizer:
         except:
             pass
 
+        # create main sheet
         try:
-            self.final_df['main_df'] = pd.DataFrame(columns=["Всего налогов необходимо заплатить:", main_sum])
-        except:
-            pass
+            src = [["Описание", "Налоговая база", "Удержано налогов", "Налоги к уплате"],
+                   ["Прибыль от реализации ЦБ", act_sm, "", max(0, 0.13*act_sm)],
+                   ["Прибыль от реализации ПФИ", "", "", ""],
+                   ["Дивидендный доход", main_df_div[0], main_df_div[1], main_df_div[2]],
+                   ["Доплата по ставке 15%", "", "", ""],
+                   ["Всего", act_sm+main_df_div[0], "", max(0, 0.13*act_sm)+main_df_div[2]],
+                   ["", "", "", ""],
+                   ["Справочная информация", "", "", ""],
+                   ["Брокеры", "", "", ""],
+                   ["Счеты брокера", "", "", ""],
+                   ["Отчетный год", "", "", self.get_max_data()],
+                   ["Год начала истории", "", "", self.get_min_data()],
+                   ["Корректировка после отчетного года", "", "", "нет"],
+                   ["Страна резиденства", "", "", "RU"],
+                   ["Валюта исчисления налогов", "", "", "RUB"],
+                   ]
+            self.final_df['main_df'] = pd.DataFrame(src)
+        except Exception as e:
+            print("ERROR MAIN SUM", e)
 
     def get_csv_moves(self, df):
+        # функция для получения движения денежных средств из csv файлов (broker interactive llc например)
         lines = [df.iloc[i][0].split(',') for i in range(len(df))]
         useful_lines = []
         for ln in lines:
@@ -208,6 +276,7 @@ class NalogSummarizer:
         self.final_df['moves'] = pd.concat([self.final_df['moves'], act_df], ignore_index=True)
 
     def get_csv_dividend(self, df):
+        # функция для получения информации о дивидендах
         lines = [df.iloc[i][0].split(',') for i in range(len(df))]
         cur_header = []
         useful_lines = []
@@ -244,6 +313,7 @@ class NalogSummarizer:
         self.final_df['div'] = pd.concat([self.final_df['div'], act_df], ignore_index=True)
 
     def get_csv_act(self, df):
+        # функция для получения акций
         lines = [df.iloc[i][0].split(',') for i in range(len(df))]
         cur_header = []
         useful_lines = []
@@ -285,6 +355,7 @@ class NalogSummarizer:
         self.final_df['act'] = pd.concat([self.final_df['act'], act_df], ignore_index=True)
 
     def parse_csv(self, df):
+        # функция для того, чтобы получить всю информацию из csv файлов
         try:
             self.get_csv_act(df)
         except Exception as e:
@@ -298,7 +369,75 @@ class NalogSummarizer:
         except Exception as e:
             print("ERROR CSV MOVES", e)
 
-    def parse_xlsx(self, df):
+    def get_dif_xlsx_act(self, df):
+        dff = df.copy()
+        res = pd.DataFrame()
+        q = [''.join([w for w in x if w != ' ']) for x in df.columns]
+        dff.columns = q
+        res['Дата'] = [str(x)[:10] for x in dff['Дата']]
+        res['Переоценка'] = res['Дата']
+        res['Валюта'] = dff['Валюта']
+        res['Валюта/RUB'] = [
+            get_currency_rate(tuple([res['Валюта'].iloc[i].upper(), "RUB"]),
+                              date=f"{res['Дата'].iloc[i][8:10]}/{res['Дата'].iloc[i][5:7]}/{res['Дата'].iloc[i][:4]}")
+            if len(
+                res['Дата'].iloc[i]) > 0 else 0 for i in range(len(res))]
+        res['Тикер'] = dff['Тикер']
+        res['Операция'] = ['Приобретение' if 'Покупка' in x else 'Реализация' for x in dff['Операция']]
+        res['Кол-во'] = [float(dff['Количество'].iloc[i]) if res['Операция'].iloc[i] == 'Приобретение' else -float(dff['Количество'].iloc[i]) for i in range(len(dff['Количество']))]
+        res['Сумма'] = dff['Сумма']
+        res['Сумма RUB'] = res['Сумма'] * res['Валюта/RUB']
+        if 'Комиссия' in dff:
+            act_df2 = res.copy()
+            act_df2['Операция'] = 'Торговая комиссия'
+            act_df2['Кол-во'] = 0
+            act_df2['Сумма'] = np.round([float(x) for x in dff['Комиссия']], 2)
+            act_df2['Сумма RUB'] = -act_df2['Сумма'] * act_df2['Валюта/RUB']
+            res = pd.concat((res, act_df2), axis=0)
+        res = res.sort_values(by=['Дата', 'Операция'])
+        self.final_df['act'] = pd.concat([self.final_df['act'], res], ignore_index=True)
+
+    def get_dif_xlsx_div(self, df):
+        dff = df.copy()
+        q = [''.join([w for w in x if w != ' ']) for x in df.columns]
+        dff.columns = q
+        act_df = pd.DataFrame()
+        act_df['Дата'] = [str(x)[:10] for x in dff['Дата']]
+        act_df['Валюта'] = [x for x in dff['Валюта']]
+        act_df['Валюта/RUB'] = [
+            get_currency_rate(tuple([act_df['Валюта'].iloc[i].upper(), "RUB"]),
+                              date=f"{str(act_df['Дата'].iloc[i])[8:10]}/{str(act_df['Дата'].iloc[i])[5:7]}/{str(act_df['Дата'].iloc[i])[:4]}")
+            if len(
+                str(act_df['Дата'].iloc[i])) > 0 else 0 for i in range(len(act_df))]
+        act_df["Источник"] = [x for x in dff['Тикер']]
+        act_df["Доход"] = [round(float(''.join([w for w in str(x) if str(w).isdigit() or w == '.'])), 2) for x in dff['Сумма']]
+        act_df["Доход"] += np.array([round(float(''.join([w for w in str(x) if str(w).isdigit() or w == '.'])), 2) for x in dff['Налогуброкера']])
+        act_df["Удержано"] = [round(x * 0.1, 2) for x in act_df['Доход']]
+        act_df["Доход RUB"] = np.round(act_df['Доход'] * act_df['Валюта/RUB'], 2)
+        act_df["Удержано RUB"] = np.round(act_df['Доход RUB'] * 0.1, 2)
+        act_df['Удержано %'] = "10%"
+        act_df['Ставка'] = "13%"
+        act_df['Зачтено RUB'] = np.round(act_df["Удержано RUB"], 0)
+        act_df['Доплата RUB'] = np.round(act_df['Доход RUB'] * 0.03, 0)
+        act_df['Описание'] = dff['Комментарий']
+        self.final_df['div'] = pd.concat([self.final_df['div'], act_df], ignore_index=True)
+
+    def get_dif_xlsx(self, sheets, sheet_names):
+        for sh in sheet_names:
+            if 'trades' in sh.lower():
+                self.get_dif_xlsx_act(sheets.parse(sh))
+            elif 'corpactions' in sh.lower():
+                self.get_dif_xlsx_div(sheets.parse(sh))
+
+    def parse_xlsx(self, file_path=None):
+        df = pd.read_excel(file_path)
+        # функция для получения информации из xlsx файлов
+        try:
+            with pd.ExcelFile(file_path) as xl:
+                sh_names = xl.sheet_names
+                self.get_dif_xlsx(xl, sh_names)
+        except Exception as e:
+            print("ERROR XLSX", e)
         try:
             self.get_xlsx_f(df)
         except Exception as e:
@@ -313,6 +452,7 @@ class NalogSummarizer:
             print("ERROR XLSX FF", e)
 
     def get_xlsx_ff(self, df):
+        # получаем фьючерсы
         dff = df.copy()
         for i in range(1, len(dff)):
             if 'Валюта' in ''.join([str(x) for x in dff.iloc[i].values]):
@@ -331,7 +471,7 @@ class NalogSummarizer:
             get_currency_rate(tuple([res_df['Валюта'].iloc[i].upper(), "RUB"]),
                               date=f"{res_df['Дата'].iloc[i][8:10]}/{res_df['Дата'].iloc[i][5:7]}/{res_df['Дата'].iloc[i][:4]}")
             if len(
-                res_df['Дата'].iloc[i]) > 0 else 0 for i in range(len(res_df))]
+                str(res_df['Дата'].iloc[i])) > 0 else 0 for i in range(len(res_df))]
         res_df['Тикер'] = dff['Тикер']
         res_df['Операция'] = dff['Вид'].str.replace('Купля', 'Приобретение')
         res_df['Кол-во'] = abs(dff['Кол-во'])
@@ -350,6 +490,7 @@ class NalogSummarizer:
                                                 ignore_index=True)
 
     def get_xlsx_f(self, df):
+        # получаем фьючерсы (другой брокер)
         dct = {'Рубль': 'RUB', 'Доллар': "USD", "Dollar": "USD", "RUB": "RUB", "USD": "USD"}
         full_df = df.copy()
         df = df[df.columns[:7]]
@@ -369,7 +510,7 @@ class NalogSummarizer:
             get_currency_rate(tuple([res_df['Валюта'].iloc[i].upper(), "RUB"]),
                               date=f"{res_df['Дата'].iloc[i].day}/{res_df['Дата'].iloc[i].month}/{res_df['Дата'].iloc[i].year}")
             if len(
-                res_df['Дата'].iloc[i]) > 0 else 0 for i in range(len(res_df))]
+                str(res_df['Дата'].iloc[i])) > 0 else 0 for i in range(len(res_df))]
 
         res_df['Дата'] = ['-'.join([str(res_df['Дата'].iloc[i].year),
                                     str(res_df['Дата'].iloc[i].month),
@@ -392,6 +533,7 @@ class NalogSummarizer:
                                                 ignore_index=True)
 
     def get_xlsx_act(self, df):
+        # получаем акции из xlsx
         dff = df.copy()
         dff = dff[abs(dff[' Прибыль в RUR ']) > 0]
         dff2 = dff.copy()
@@ -416,11 +558,8 @@ class NalogSummarizer:
         res = res.sort_values(by=['Дата', 'Операция'])
         self.final_df['act'] = pd.concat([self.final_df['act'], res], ignore_index=True)
 
-    def get_main_df(self):
-        df = pd.DataFrame()
-        return df
-
     def save_res(self, result_path):
+        # сохраняем все данные в итоговую xlsx таблицу с учетом форматирования на размер ячеек
         writer = pd.ExcelWriter(result_path, engine='xlsxwriter')
         self.final_df['main_df'].to_excel(writer, sheet_name='Главная', index=False)
         if len(self.final_df['act']) > 0:
@@ -468,13 +607,13 @@ class NalogSummarizer:
                 worksheet.set_column(i, i, column_width)
         writer.close()
 
+    # открываем и начинаем парсить файлы
     def process_file(self, file_path):
         if file_path[-3:] == 'csv':
             df = pd.read_csv(file_path, sep='delimeter', engine='python')
             self.parse_csv(df)
         else:
-            df = pd.read_excel(file_path)
-            self.parse_xlsx(df)
+            self.parse_xlsx(file_path)
 
     def process_files(self, file_path, result_path):
         files = file_path.split(',')
@@ -489,7 +628,7 @@ def save_uploaded_file(uploaded_file):
     with open(os.path.join("tempDir", uploaded_file.name), "wb") as f:
         f.write(uploaded_file.getbuffer())
 
-
+# streamlit приложение
 def main():
     prs = NalogSummarizer()
     st.title("Генератор финансовых отчётов")
