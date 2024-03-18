@@ -164,6 +164,7 @@ class NalogSummarizer:
             self.final_df['act']['Сумма RUB'] = np.round(self.final_df['act']['Сумма RUB'], 2)
             self.final_df['act'] = self.final_df['act'].reset_index().drop(columns=['index'])
             self.final_df['act'] = pd.concat([self.final_df['act'], summ_act], ignore_index=True)
+            self.final_df['act'] = self.final_df['act'].sort_values(by='Тикер')
         except Exception as e:
             print(f"SUM ACT ERROR: {e}")
 
@@ -344,7 +345,6 @@ class NalogSummarizer:
         act_df["Кол-во"] = res['Количество']
         act_df["Сумма"] = np.round([float(x) if len(x) > 0 else 0 for x in res['Выручка']], 2)
         act_df['Сумма RUB'] = np.round(act_df['Валюта/RUB'] * act_df['Сумма'], 2)
-
         if 'Комиссия/плата' in res:
             act_df2 = act_df.copy()
             act_df2['Операция'] = 'Торговая комиссия'
@@ -428,7 +428,7 @@ class NalogSummarizer:
             if abs(tickers[tick] - 0) < 1e-8:
                 good_ids.append(i)
         res = res.iloc[good_ids].reset_index().drop(columns=['index'])
-        
+
         res = res.sort_values(by=['Дата', 'Операция'])
         self.final_df['act'] = pd.concat([self.final_df['act'], res], ignore_index=True)
 
@@ -614,49 +614,52 @@ class NalogSummarizer:
         # сохраняем все данные в итоговую xlsx таблицу с учетом форматирования на размер ячеек
         writer = pd.ExcelWriter(result_path, engine='xlsxwriter')
         self.final_df['main_df'].to_excel(writer, sheet_name='Главная', index=False)
+
+        workbook = writer.book
+        format1 = workbook.add_format({'num_format': '#,##0.00'})
         if len(self.final_df['act']) > 0:
             self.final_df['act'].to_excel(writer, sheet_name='Табл. 1', index=False)
             worksheet = writer.sheets['Табл. 1']
             for i, col in enumerate(self.final_df['act'].columns):
                 column_len = self.final_df['act'][col].astype(str).str.len().max()
                 column_width = max(column_len, len(col))
-                worksheet.set_column(i, i, column_width)
+                worksheet.set_column(i, i, column_width, format1)
 
         if len(self.final_df['ft_act']) > 0:
             self.final_df['ft_act'].to_excel(writer, sheet_name='Табл. 2', index=False)
             worksheet = writer.sheets['Табл. 2']
-            for i, col in enumerate(self.final_df['act'].columns):
-                column_len = self.final_df['act'][col].astype(str).str.len().max()
+            for i, col in enumerate(self.final_df['ft_act'].columns):
+                column_len = self.final_df['ft_act'][col].astype(str).str.len().max()
                 column_width = max(column_len, len(col))
-                worksheet.set_column(i, i, column_width)
+                worksheet.set_column(i, i, column_width, format1)
         if len(self.final_df['ft_non_act']) > 0:
             self.final_df['ft_non_act'].to_excel(writer, sheet_name='Табл. 3', index=False)
             worksheet = writer.sheets['Табл. 3']
-            for i, col in enumerate(self.final_df['act'].columns):
-                column_len = self.final_df['act'][col].astype(str).str.len().max()
+            for i, col in enumerate(self.final_df['ft_non_act'].columns):
+                column_len = self.final_df['ft_non_act'][col].astype(str).str.len().max()
                 column_width = max(column_len, len(col))
-                worksheet.set_column(i, i, column_width)
+                worksheet.set_column(i, i, column_width, format1)
         if len(self.final_df['div']) > 0:
             self.final_df['div'].to_excel(writer, sheet_name='Табл. 4 Дивиденды', index=False)
             worksheet = writer.sheets['Табл. 4 Дивиденды']
-            for i, col in enumerate(self.final_df['act'].columns):
-                column_len = self.final_df['act'][col].astype(str).str.len().max()
+            for i, col in enumerate(self.final_df['div'].columns):
+                column_len = self.final_df['div'][col].astype(str).str.len().max()
                 column_width = max(column_len, len(col))
-                worksheet.set_column(i, i, column_width)
+                worksheet.set_column(i, i, column_width, format1)
         if len(self.final_df['proc']) > 0:
             self.final_df['proc'].to_excel(writer, sheet_name='Табл. 5 Проценты', index=False)
             worksheet = writer.sheets['Табл. 5 Проценты']
-            for i, col in enumerate(self.final_df['act'].columns):
-                column_len = self.final_df['act'][col].astype(str).str.len().max()
+            for i, col in enumerate(self.final_df['proc'].columns):
+                column_len = self.final_df['proc'][col].astype(str).str.len().max()
                 column_width = max(column_len, len(col))
-                worksheet.set_column(i, i, column_width)
+                worksheet.set_column(i, i, column_width, format1)
         if len(self.final_df['moves']) > 0:
             self.final_df['moves'].to_excel(writer, sheet_name='Табл. 6 Движение средств', index=False)
             worksheet = writer.sheets['Табл. 6 Движение средств']
-            for i, col in enumerate(self.final_df['act'].columns):
-                column_len = self.final_df['act'][col].astype(str).str.len().max()
+            for i, col in enumerate(self.final_df['moves'].columns):
+                column_len = self.final_df['moves'][col].astype(str).str.len().max()
                 column_width = max(column_len, len(col))
-                worksheet.set_column(i, i, column_width)
+                worksheet.set_column(i, i, column_width, format1)
         writer.close()
 
     # открываем и начинаем парсить файлы
